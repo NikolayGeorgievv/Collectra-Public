@@ -6,7 +6,7 @@ A full-stack collection and inventory management platform where users can catalo
 
 > Source code is private. This repo serves as a public project showcase.
 
-![Collectra Dashboard](static/images/collectra-home-page.png)
+![Collectra Dashboard](collectra-home-page.png)
 
 ## What It Does
 
