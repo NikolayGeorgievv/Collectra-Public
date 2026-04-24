@@ -21,7 +21,7 @@ Collectra is a personal collection management web application designed to catalo
 
 The project was built from scratch as a solo endeavor — every layer from database schema design and REST API architecture to Angular component development and DevOps configuration was planned, implemented, and maintained by a single developer. It serves as both a real, production-grade product with live users and a comprehensive full-stack engineering portfolio piece.
 
-<!-- ![Collectra Dashboard Screenshot](docs/images/dashboard-screenshot.png) -->
+ ![Collectra Dashboard Screenshot](docs/images/dashboard-screenshot.png)
 
 ---
 
@@ -205,7 +205,7 @@ Authentication is **JWT-based** with **refresh token rotation**:
 
 Collections are the top-level organizational unit. Each collection belongs to a single user and contains items that share a common theme — "Watches", "Video Game Library", "Trading Cards", etc.
 
-<!-- ![Collections View](docs/images/collections-view.png) -->
+ ![Collections View](docs/images/collections-view.png) 
 
 - Full CRUD with name, description, and associated category.
 - Collections are displayed as card grids on the home page and within the dedicated collections list.
@@ -217,8 +217,7 @@ Collections are the top-level organizational unit. Each collection belongs to a 
 
 Categories define the schema for items within a collection. While a collection is "what you're collecting," a category is "what kind of thing it is" and determines which custom fields are available.
 
-<!-- ![Category Form with Custom Fields](docs/images/category-form.png) -->
-
+ ![Category Form with Custom Fields](docs/images/category-form.png) 
 - Each category has a name, description, optional icon (displayed throughout the UI), and optional color.
 - **Custom Field Definitions** (the EAV system): Each category can have any number of field definitions, configured at category creation or edit time. Supported field types include text, number, decimal, date, and boolean, each with optional validation constraints.
 - Display order controls the sequence of fields on item forms and detail pages.
@@ -230,7 +229,7 @@ Categories define the schema for items within a collection. While a collection i
 
 Items are the individual objects being cataloged. Each item belongs to a collection, inherits its category's custom fields, and supports rich metadata.
 
-<!-- ![Item Detail Page](docs/images/item-detail.png) -->
+ ![Item Detail Page](docs/images/item-detail.png) 
 
 - Core fields: name (required), description, condition (enum), acquisition date, purchase price, current value, notes.
 - **Dynamic custom fields**: The item form renders input fields based on the category's field definitions — text inputs, number fields, date pickers, and boolean toggles, each with the appropriate validation.
@@ -244,7 +243,7 @@ Items are the individual objects being cataloged. Each item belongs to a collect
 
 Every item supports a full photo gallery with upload, viewing, and management capabilities.
 
-<!-- ![Photo Gallery and Viewer](docs/images/photo-gallery.png) -->
+ ![Photo Gallery and Viewer](docs/images/photo-gallery.png) 
 
 - **Drag-and-drop upload**: A dropzone on the item detail page accepts dragged images or click-to-browse file selection. Uploads are sent one at a time to the backend for individual validation and processing.
 - **Primary photo**: Any photo can be set as the primary image for an item. The primary photo appears as the thumbnail on item cards throughout the app.
@@ -261,7 +260,7 @@ Every item supports a full photo gallery with upload, viewing, and management ca
 
 Tags provide cross-cutting organization that works across categories and collections. While categories define what type of item something is, tags are flexible labels for any grouping the user finds useful — "Favorites", "For Sale", "Needs Repair", "Gift Ideas".
 
-<!-- ![Tag Management](docs/images/tags.png) -->
+ ![Tag Management](docs/images/tags.png) 
 
 - Full CRUD for tags with name and optional description.
 - **Multi-select tag assignment** on the item form via a custom dropdown component built with `@HostListener` and embedded selection state (Angular CDK overlays were found to have unreliable change detection in multi-select toggle patterns, so a custom implementation proved more reliable).
@@ -287,7 +286,7 @@ Maintenance records track the service history, repairs, and upkeep of items. Par
 
 Collectra provides two levels of search: a quick search in the navigation bar for fast lookups, and a full search page for detailed exploration with filtering, sorting, and pagination.
 
-<!-- ![Quick Search](docs/images/quick-search.png) -->
+![Quick Search](docs/images/quick-search.png) 
 
 **Quick Search (Navigation Bar):**
 - Accessible from the navigation bar on every page.
@@ -298,7 +297,7 @@ Collectra provides two levels of search: a quick search in the navigation bar fo
 - **Visual cues in results**: Item results show their primary photo thumbnail; category results show their icon or first-letter avatar; collection results show plain text.
 - **Click-to-navigate**: Each result links directly to its detail page.
 
-<!-- ![Full Search Page](docs/images/search.png) -->
+![Full Search Page](docs/images/search.png) 
 
 **Full Search Page:**
 - Dedicated search page for in-depth exploration across all entity types.
@@ -311,7 +310,7 @@ Collectra provides two levels of search: a quick search in the navigation bar fo
 
 The dashboard provides at-a-glance insights into a user's collection portfolio through KPI cards and interactive charts, powered by Chart.js via ng2-charts.
 
-<!-- ![Dashboard](docs/images/dashboard.png) -->
+ ![Dashboard](docs/images/dashboard.png)
 
 **KPI Cards:**
 - Total items count
@@ -339,7 +338,7 @@ The backend serves all dashboard data via a single `GET /api/dashboard/stats` en
 
 Collectra allows users to share their collections publicly via revocable snapshot links. This feature was designed with privacy, security, and caching in mind.
 
-<!-- ![Shared Collection View](docs/images/shared-view.png) -->
+ ![Shared Collection View](docs/images/shared-view.png) 
 
 **How it works:**
 
@@ -361,7 +360,7 @@ Collectra allows users to share their collections publicly via revocable snapsho
 
 Collectra is GDPR-compliant, providing users with full control over their data.
 
-<!-- ![Account Settings](docs/images/account-settings.png) -->
+ ![Account Settings](docs/images/account-settings.png) 
 
 **Privacy Policy**: A comprehensive privacy policy page at `/privacy` covers data collection, storage, third-party processors (AWS, Cloudflare, Google, SMTP2GO), user rights under GDPR Articles 15-21, cookie disclosure (Collectra uses no tracking cookies — only JWTs in `localStorage`), data retention periods, and contact information for the data controller. Updated to include Google Sign-In data usage disclosures.
 
