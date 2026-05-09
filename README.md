@@ -334,27 +334,29 @@ The dashboard provides at-a-glance insights into a user's collection portfolio t
 
 The backend serves all dashboard data via a single `GET /api/dashboard/stats` endpoint, assembled by a `DashboardService` that runs custom JPQL aggregation queries across repositories and returns a consolidated DTO. This single-request approach avoids waterfall loading in the frontend.
 
-### Collection Sharing
+### Sharing
 
-Collectra allows users to share their collections publicly via revocable snapshot links. This feature was designed with privacy, security, and caching in mind.
+Collectra supports public sharing at two levels — individual items and entire collections. Both use live data, unique revocable tokens, and granular visibility controls.
 
- ![Shared Collection View](docs/images/shared-view.png) 
+![Shared Collection View](docs/images/shared-view.png)
+![Shared Item View](docs/images/shared-item-view.png)
 
-**How it works:**
+**Item Sharing**
 
-1. From the account settings Sharing page, the user clicks "Share" on a collection.
-2. The backend serializes the current state of the collection — items, custom field values, photo references — into a **JSONB snapshot** stored in the `shared_collections` table. This is a frozen point-in-time capture, not a live view.
-3. A short, unique token (base62 string via `SecureRandom`) is generated, producing clean shareable URLs like `collectra.site/share/a8Bk2mXz`.
-4. The public view is accessible without authentication via a dedicated Angular route that bypasses the auth guard.
+From the item detail page, users can generate a shareable link via a dialog that provides full control over what viewers see. Each custom field value and maintenance record has an independent visibility toggle (`sharedPublicly` flag on the record itself). Financial information (purchase price, current value) is controlled by a separate `showPrice` flag on the `shared_items` table, defaulting to hidden. The result is a clean public page with photos, description, and only the data the owner explicitly opted into sharing.
+
+**Collection Sharing**
+
+From the collection detail page, users select which items to include via a toggle list. The included item IDs are stored in a `shared_collection_items` join table. The public view renders a paginated list of item summaries with thumbnails; clicking an item loads its full detail view, filtered by the same per-item visibility flags used in standalone item sharing.
 
 **Design decisions:**
 
-- **Snapshot over live view**: Snapshots solve multiple problems simultaneously — cache invalidation (Cloudflare can cache aggressively since content never changes), privacy (users can delete items from their real collection without affecting the shared view), and simplicity (no complex query logic for public endpoints). If the user updates their collection and wants to re-share, they generate a new link.
-- **Revocable tokens**: An `is_active` flag on the `shared_collections` record. Setting it to `false` instantly kills the link. View counts are tracked per share.
-- **Granular privacy controls**: Users can choose per-category whether fields are publicly visible (`sharedPublicly` flag). A `shareFinancialInfo` flag on the collection controls whether purchase prices and current values appear. Hidden fields show as "(hidden)" in the public view with neutral styling.
-- **Photo security in shared views**: Photos are served through a backend endpoint that validates the token, confirms the photo belongs to an item in the shared snapshot, and proxies the S3 response. No direct S3 access is exposed.
-- **Public view UI**: Displayed as a table with item rows. Clicking an item opens a detail view with its fields and photo gallery. The public route loads a minimal component tree, not the full authenticated app shell.
-- **One active share per collection**: Regenerating a link revokes the previous one and creates a fresh snapshot. This keeps the model simple — multi-link support was explicitly deferred.
+- **Visibility as a data concern**: Rather than maintaining a separate configuration model for "what to share," visibility flags live directly on the data rows — `sharedPublicly` on `item_field_values` and `maintenance_records`. This means no configuration drift, no orphaned settings, and filtering is a simple `WHERE` clause. Price visibility is the exception, stored on the share link itself since it's a sharing decision rather than a data property.
+- **Shared rendering layer**: Item sharing and collection sharing are independent systems that converge on a single rendering path. A `SharedItemDisplayComponent` handles all item rendering on the frontend, while `SharedItemServiceImpl.buildSharedItemDTO()` assembles the item view for both contexts on the backend — avoiding duplication across sharing modes.
+- **Photo security**: Photos in shared views are proxied through backend endpoints that validate the share token and confirm the photo belongs to an included item. No direct S3 URLs are exposed to viewers.
+- **Token generation**: 12-character base62 strings via `SecureRandom`, checked for collisions across both sharing tables. Unique constraints in the database produce clean URLs like `collectra.site/shared-items/a8Bk2mXz9pLn`.
+- **One active share per resource**: Each item and each collection can have one active share link. Revoking deletes the record entirely — no soft-delete flags. Creating a new share after revocation generates a fresh token.
+- **Cache strategy**: Data endpoints use 5-minute `Cache-Control` headers; photo endpoints use 30 minutes. Short enough to reflect changes promptly, long enough to absorb repeated views without unnecessary S3 traffic.
 
 ### Data Export & GDPR Compliance
 
