@@ -193,7 +193,7 @@ Authentication is **JWT-based** with **refresh token rotation**:
 - **Public endpoints** (shared collection views): Bucket4j with per-IP buckets, keyed by the `CF-Connecting-IP` header (injected by Cloudflare) to get the real client IP behind the CDN.
 - **Cloudflare WAF**: Outer layer with rate limiting rules on `/api/public/*` as described above.
 
-**Photo security**: Photos are never served via direct S3 URLs. All photo access is proxied through the backend regardless of context. For authenticated users, a `SecureImagePipe` on the frontend fetches internal API paths (e.g., `/api/photos/{id}/file`) with the JWT attached — the backend validates ownership and streams the bytes from S3. For shared collection views, a separate public endpoint (`/api/public/share/{token}/photo/{photoId}/file`) validates the share token and confirms the requested photo belongs to an item in the snapshot's JSONB data before streaming. No photo is ever accessible without either a valid JWT proving ownership or an active share token.
+**Photo security**: Photos are never served via direct S3 URLs. All photo access is proxied through the backend regardless of context. For authenticated users, a `SecureImagePipe` on the frontend fetches internal API paths (e.g., `/api/photos/{id}/file`) with the JWT attached — the backend validates ownership and streams the bytes from S3. For shared collection views, a separate public endpoint (`/api/public/share/{token}/photo/{photoId}/file`) validates the share token and confirms the requested photo belongs to an item before streaming. No photo is ever accessible without either a valid JWT proving ownership or an active share token.
 
 **Photo upload validation**: Files are validated for MIME type (images only), file size (10MB max), and magic byte signatures to prevent disguised file uploads. Image dimensions are also checked to reject excessively large images.
 
@@ -425,9 +425,6 @@ Collectra is GDPR-compliant, providing users with full control over their data.
 ---
 
 ## Engineering Decisions & Problems Solved
-
-### Snapshot-Based Sharing Over Live Views
-Live shared views would require solving cache invalidation with Cloudflare, handling deleted photos gracefully, and building complex public query logic. Snapshots eliminate all of these: the data is frozen as JSONB, Cloudflare can cache forever, and photo deletions from the real collection don't affect the shared view. The trade-off (stale data) is mitigated by letting users regenerate the link at any time.
 
 ### Ownership Enforcement via ResourceNotFoundException
 Instead of returning 403 Forbidden when a user tries to access another user's resource, the service layer throws `ResourceNotFoundException`. This prevents information leakage — an attacker can't distinguish between "this resource exists but I don't own it" and "this resource doesn't exist." Every `findById` call chains with a user ownership check.
