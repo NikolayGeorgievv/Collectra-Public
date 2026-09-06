@@ -8,8 +8,7 @@
     <a href="https://collectra.site">Live App</a> · 
     <a href="#features">Features</a> · 
     <a href="#tech-stack">Tech Stack</a> · 
-    <a href="#architecture">Architecture</a> · 
-    <a href="#getting-started">Getting Started</a>
+    <a href="#architecture">Architecture</a>
   </p>
 </p>
 
@@ -44,18 +43,11 @@ The project was built from scratch as a solo endeavor — every layer from datab
   - [Maintenance Records](#maintenance-records)
   - [Global Search](#global-search)
   - [Dashboard & Analytics](#dashboard--analytics)
-  - [Collection Sharing](#collection-sharing)
+  - [Sharing](#sharing)
   - [Data Export & GDPR Compliance](#data-export--gdpr-compliance)
   - [Authentication & Account Management](#authentication--account-management)
   - [Landing Page & Documentation](#landing-page--documentation)
 - [Engineering Decisions & Problems Solved](#engineering-decisions--problems-solved)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Local Development](#local-development)
-  - [Production Deployment](#production-deployment)
-- [Project Structure](#project-structure)
-- [Database Migrations](#database-migrations)
-- [Roadmap](#roadmap)
 - [License](#license)
 
 ---
@@ -136,7 +128,7 @@ Instead, Collectra uses a data-driven approach:
 Category ──< FieldDefinition ──< ItemFieldValue >── Item
 ```
 
-**`FieldDefinition`** describes a custom field attached to a category. Each definition specifies the field name, display label, data type (`TEXT`, `NUMBER`, `DECIMAL`, `DATE`, `BOOLEAN`), whether it's required, validation constraints (min/max values, max length, regex patterns), a default value, and display order. Field definitions are created alongside a category and drive both backend validation and frontend form rendering.
+**`FieldDefinition`** describes a custom field attached to a category. Each definition specifies the field name, display label, data type (`TEXT`, `NUMBER`, `DECIMAL`, `DATE`, `BOOLEAN`), whether it's required, validation constraints (min/max values, max length), a default value, and display order. Field definitions are created alongside a category and drive both backend validation and frontend form rendering.
 
 **`ItemFieldValue`** stores the actual value for each item-field pair. The table uses typed columns (`text_value`, `number_value`, `decimal_value`, `date_value`, `boolean_value`) so that values are stored in their native types rather than as raw strings. When an item is created or updated, the service validates each submitted field value against its definition — checking type compatibility, required constraints, and value ranges — before persisting.
 
@@ -173,7 +165,7 @@ Environment secrets (database credentials, JWT secret, AWS keys, SMTP credential
 - DDoS protection on all traffic.
 - WAF rate limiting rules on public endpoints (`/api/public/*`): 100 requests per 10 seconds per IP, with a 10-second block on violation.
 - Cache Rule configured to bypass cache on extension-less paths (Angular routes), preventing Cloudflare from caching SPA navigation.
-- `Cache-Control: max-age=86400, public` on public photo endpoints.
+- Public share endpoints set their own `Cache-Control` headers, which Cloudflare honours at the edge: **30 minutes** for photo bytes, **5 minutes** for data. Long enough to absorb repeat views, short enough that edits to a shared item show up promptly.
 - **Email Routing**: `support@collectra.site` forwards inbound email to a Gmail inbox.
 
 ### Security Architecture
@@ -193,7 +185,7 @@ Authentication is **JWT-based** with **refresh token rotation**:
 - **Public endpoints** (shared collection views): Bucket4j with per-IP buckets, keyed by the `CF-Connecting-IP` header (injected by Cloudflare) to get the real client IP behind the CDN.
 - **Cloudflare WAF**: Outer layer with rate limiting rules on `/api/public/*` as described above.
 
-**Photo security**: Photos are never served via direct S3 URLs. All photo access is proxied through the backend regardless of context. For authenticated users, a `SecureImagePipe` on the frontend fetches internal API paths (e.g., `/api/photos/{id}/file`) with the JWT attached — the backend validates ownership and streams the bytes from S3. For shared collection views, a separate public endpoint (`/api/public/share/{token}/photo/{photoId}/file`) validates the share token and confirms the requested photo belongs to an item before streaming. No photo is ever accessible without either a valid JWT proving ownership or an active share token.
+**Photo security**: Photos are never served via direct S3 URLs. All photo access is proxied through the backend regardless of context. For authenticated users, a `SecureImagePipe` on the frontend fetches internal API paths (e.g., `/api/photos/{id}/file`) with the JWT attached — the backend validates ownership and streams the bytes from S3. For shared collection views, a separate public endpoint (`/api/public/share/{token}/photo/{photoId}/file`) validates the share token and confirms the requested photo belongs to an item included in that share (via the `shared_collection_items` join table) before streaming. No photo is ever accessible without either a valid JWT proving ownership or an active share token.
 
 **Photo upload validation**: Files are validated for MIME type (images only), file size (10MB max), and magic byte signatures to prevent disguised file uploads. Image dimensions are also checked to reject excessively large images.
 
@@ -207,7 +199,7 @@ Collections are the top-level organizational unit. Each collection belongs to a 
 
  ![Collections View](docs/images/collections-view.png) 
 
-- Full CRUD with name, description, and associated category.
+- Full CRUD with name and description. A collection is purely a container — it has no category of its own; categorization happens per item.
 - Collections are displayed as card grids on the home page and within the dedicated collections list.
 - Item counts are displayed on each collection card.
 - Financial fields: `shareFinancialInfo` flag controls whether purchase price and current value are included when the collection is shared publicly.
@@ -215,13 +207,14 @@ Collections are the top-level organizational unit. Each collection belongs to a 
 
 ### Categories & Custom Fields
 
-Categories define the schema for items within a collection. While a collection is "what you're collecting," a category is "what kind of thing it is" and determines which custom fields are available.
+Categories define the custom-field schema for items. They are **not** scoped to a collection — a category is user-level and can be applied to items in any collection. Where a collection is "where an item lives," a category is "what kind of thing it is" and determines which custom fields are available.
 
  ![Category Form with Custom Fields](docs/images/category-form.png) 
 - Each category has a name, description, optional icon (displayed throughout the UI), and optional color.
 - **Custom Field Definitions** (the EAV system): Each category can have any number of field definitions, configured at category creation or edit time. Supported field types include text, number, decimal, date, and boolean, each with optional validation constraints.
 - Display order controls the sequence of fields on item forms and detail pages.
-- A `sharedPublicly` flag on categories controls whether the category's field definitions and values appear in shared collection views. This gives users granular privacy control — they might share their watch collection but hide the custom field for "Storage Location" or "Insurance Policy Number."
+- Items can carry several categories at once, inheriting the field definitions of each.
+- **Sharing visibility is decided per item, not per category** — each individual field *value* carries its own `sharedPublicly` flag, so a user can hide "Storage Location" on one watch and show it on another. See [Sharing](#sharing).
 - Categories with an icon display it throughout the app (search results, item detail headers, category lists). Categories without an icon show a styled first-letter avatar.
 - Item counts per category are displayed in the category list.
 
@@ -234,7 +227,7 @@ Items are the individual objects being cataloged. Each item belongs to a collect
 - Core fields: name (required), description, condition (enum), acquisition date, purchase price, current value, notes.
 - **Dynamic custom fields**: The item form renders input fields based on the category's field definitions — text inputs, number fields, date pickers, and boolean toggles, each with the appropriate validation.
 - Multi-category assignment: Items can belong to multiple categories.
-- Single-collection assignment: Each item belongs to exactly one collection.
+- Single-collection assignment: Each item belongs to exactly one collection, and can be moved between collections at any time.
 - Item cards display a primary photo thumbnail (120×120), name, collection, and category.
 - Item detail pages include tabbed sections for general info, photos, and maintenance records.
 - Full CRUD with create and edit sharing the same reactive form component, differentiated by mode detection from the route.
@@ -248,7 +241,7 @@ Every item supports a full photo gallery with upload, viewing, and management ca
 - **Drag-and-drop upload**: A dropzone on the item detail page accepts dragged images or click-to-browse file selection. Uploads are sent one at a time to the backend for individual validation and processing.
 - **Primary photo**: Any photo can be set as the primary image for an item. The primary photo appears as the thumbnail on item cards throughout the app.
 - **Thumbnail generation**: On upload, the backend uses Thumbnailator to generate a 300×300 thumbnail (maintaining aspect ratio, 80% JPEG quality) stored alongside the original in S3 under a `thumbs/` subdirectory. The 300px size ensures crisp rendering on Retina displays even at smaller display sizes.
-- **AWS S3 storage**: Photos and thumbnails are stored in S3.
+- **AWS S3 storage**: Photos and thumbnails are stored in S3, keyed by item rather than by collection — so moving an item between collections is a single database update with no S3 copy/delete work.
 - **Full-screen viewer**: Clicking any photo opens a modal gallery viewer with navigation arrows, keyboard support (← → Esc), and a photo counter.
 - **Horizontal photo strip**: Item detail pages show all photos in a scrollable horizontal strip, with the primary photo displayed larger.
 - **Photo deletion**: Individual delete buttons with confirmation. Deleting a photo cascades to both the original and thumbnail in S3, and decrements the user's storage usage counter.
@@ -351,7 +344,7 @@ From the collection detail page, users select which items to include via a toggl
 
 **Design decisions:**
 
-- **Visibility as a data concern**: Rather than maintaining a separate configuration model for "what to share," visibility flags live directly on the data rows — `sharedPublicly` on `item_field_values` and `maintenance_records`. This means no configuration drift, no orphaned settings, and filtering is a simple `WHERE` clause. Price visibility is the exception, stored on the share link itself since it's a sharing decision rather than a data property.
+- **Visibility as a data concern**: Rather than maintaining a separate configuration model for "what to share," visibility flags live directly on the data rows — `sharedPublicly` on `item_field_values` and `maintenance_records`. This means no configuration drift, no orphaned settings, and filtering is a simple `WHERE` clause. It also means visibility is decided per item: two watches in the same category can expose different fields. Price visibility is the exception, stored on the share link itself since it's a sharing decision rather than a data property.
 - **Shared rendering layer**: Item sharing and collection sharing are independent systems that converge on a single rendering path. A `SharedItemDisplayComponent` handles all item rendering on the frontend, while `SharedItemServiceImpl.buildSharedItemDTO()` assembles the item view for both contexts on the backend — avoiding duplication across sharing modes.
 - **Photo security**: Photos in shared views are proxied through backend endpoints that validate the share token and confirm the photo belongs to an included item. No direct S3 URLs are exposed to viewers.
 - **Token generation**: 12-character base62 strings via `SecureRandom`, checked for collisions across both sharing tables. Unique constraints in the database produce clean URLs like `collectra.site/shared-items/a8Bk2mXz9pLn`.
@@ -370,7 +363,7 @@ Collectra is GDPR-compliant, providing users with full control over their data.
 
 **Data Export** (Article 20 — Right to Portability): `GET /api/account/export` returns a JSON file containing all of the user's data: account information, collections, items with all custom field values, categories with field definitions, tags, maintenance records, and photo metadata. The export is structured and machine-readable.
 
-**Account Deletion** (Article 17 — Right to Erasure): `DELETE /api/account` performs a full cascade deletion: collections, items, field values, tags, maintenance records, photos (both database records and S3 objects including thumbnails), shared collection snapshots, and finally the user record. The `AccountService` orchestrates this in a transactional context, with S3 cleanup happening after the database transaction succeeds.
+**Account Deletion** (Article 17 — Right to Erasure): `DELETE /api/account` performs a full cascade deletion: collections, items, field values, tags, maintenance records, photos (both database records and S3 objects including thumbnails), any active item or collection share links, and finally the user record. The `AccountService` orchestrates this in a transactional context, with S3 cleanup happening after the database transaction succeeds.
 
 **Consent Tracking**: A `policy_accepted_at` timestamp is recorded on user registration. Registration is blocked without policy acceptance on both frontend and backend.
 
@@ -389,7 +382,6 @@ Collectra is GDPR-compliant, providing users with full control over their data.
 - Supports account linking: if a Google Sign-In email matches an existing local account, the Google ID is attached to the existing user.
 - Google-only users (no password) are handled gracefully — the password column is nullable, and password-dependent flows (like "Change Password") adapt to show "Set Password" instead.
 - Privacy policy updated with Google-specific data disclosures.
-- OAuth consent screen submitted for Google verification (currently in test mode with manually allowlisted emails).
 
 **Password Reset:**
 - "Forgot Password" flow: user enters email → backend generates a time-limited token (stored in `password_reset_tokens` table) → sends a reset email via SMTP2GO → user clicks the link → enters a new password in a dialog.
@@ -445,7 +437,7 @@ When implementing client-side sorting with nullable fields (like purchase price 
 Thumbnails are generated for every uploaded photo, not just the primary one. This avoids an expensive on-demand generation if the user changes the primary photo, and means the photo strip on item detail pages can use lightweight thumbnails instead of full-resolution originals. At ~20-50KB per thumbnail versus potentially several MB per original, this represents a significant bandwidth saving when loading item lists with 30+ items.
 
 ### Flyway Over Hibernate DDL Auto
-`hibernate.ddl-auto=update` is fine for local development but dangerous in production — it can't handle column renames, data migrations, or rollbacks, and a bad change could destroy data. Every schema change goes through a numbered Flyway migration SQL script, versioned and tracked in a `flyway_schema_history` table. Currently at V13+.
+`hibernate.ddl-auto=update` is fine for local development but dangerous in production — it can't handle column renames, data migrations, or rollbacks, and a bad change could destroy data. Every schema change goes through a numbered Flyway migration SQL script, versioned and tracked in a `flyway_schema_history` table. Currently at V22.
 
 ### CSS Architecture Patterns
 Several CSS patterns were adopted to solve recurring layout issues:
@@ -458,6 +450,8 @@ Several CSS patterns were adopted to solve recurring layout issues:
 ---
 
 > **📱 Mobile Version:** Collectra is fully responsive with a mobile-optimized layout including bottom navigation, stacked views, and touch-friendly controls. To preview the mobile experience, open [collectra.site](https://collectra.site) in your browser and use DevTools → Device Toolbar (F12 → Ctrl+Shift+M on Chrome) to emulate a mobile viewport or open via your phone.
+
+## License
 
 All rights reserved. This repository is published for portfolio and educational purposes.
 
